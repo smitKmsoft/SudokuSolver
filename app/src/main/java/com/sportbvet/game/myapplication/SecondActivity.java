@@ -3,12 +3,14 @@ package com.sportbvet.game.myapplication;
 import static org.opencv.android.Utils.matToBitmap;
 import static org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_MEAN_C;
 import static org.opencv.imgproc.Imgproc.CHAIN_APPROX_SIMPLE;
+import static org.opencv.imgproc.Imgproc.COLOR_RGB2GRAY;
 import static org.opencv.imgproc.Imgproc.GaussianBlur;
 import static org.opencv.imgproc.Imgproc.RETR_TREE;
 import static org.opencv.imgproc.Imgproc.THRESH_BINARY_INV;
 import static org.opencv.imgproc.Imgproc.adaptiveThreshold;
 import static org.opencv.imgproc.Imgproc.approxPolyDP;
 import static org.opencv.imgproc.Imgproc.arcLength;
+import static org.opencv.imgproc.Imgproc.cvtColor;
 import static org.opencv.imgproc.Imgproc.findContours;
 import static org.opencv.imgproc.Imgproc.getPerspectiveTransform;
 import static org.opencv.imgproc.Imgproc.warpPerspective;
@@ -16,6 +18,7 @@ import static org.opencv.imgproc.Imgproc.warpPerspective;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.media.audiofx.DynamicsProcessing;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -31,6 +34,7 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
@@ -44,6 +48,8 @@ import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
+import org.opencv.core.Rect;
+import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.Board;
@@ -53,7 +59,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class SecondActivity extends AppCompatActivity {
 
@@ -105,79 +112,80 @@ public class SecondActivity extends AppCompatActivity {
             Uri imageUri = data.getData();
             try {
                 Bitmap b = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageUri);
-                Size size = new Size(b.getWidth(),b.getHeight());
 
-                // grayscaleImage
-                Mat tmp = new Mat (size, CvType.CV_8UC1);
+                Mat tmp = new Mat(b.getHeight(), b.getWidth(), CvType.CV_8UC1);
                 Utils.bitmapToMat(b, tmp);
-                Imgproc.cvtColor(tmp, tmp, Imgproc.COLOR_RGB2GRAY);
-                matToBitmap(tmp, b);
 
-                // image process for detect board
-                GaussianBlur(tmp, tmp, new Size(11.0, 11.0), 0.0);
-                adaptiveThreshold(tmp, tmp, 255.0, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY_INV, 13, 2.0);
+                Mat processingMat = new Mat(b.getHeight(), b.getWidth(), CvType.CV_8UC1);
 
-                Mat hierarchy = new Mat();
-                ArrayList<MatOfPoint> matpoints = new ArrayList<>();
-                findContours(tmp,matpoints,hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
-                MatOfPoint largestContour = getLargestContour(matpoints);
+                prepareProcessingMat(tmp, processingMat);
+                MatOfPoint largestContour = getLargestContour(processingMat);
                 List<Point> largestContourCornerList = getLargestContourCornerList(largestContour);
-                Mat perspectiveMat = createPerspectiveMat(tmp, largestContourCornerList);
-
-                Bitmap boardImage = Bitmap.createBitmap(
-                        perspectiveMat.cols(),
-                        perspectiveMat.rows(),
-                        Bitmap.Config.ARGB_8888
-                );
-
-                matToBitmap(perspectiveMat, boardImage);
+                Mat perspectiveMat = createPerspectiveMat(processingMat, largestContourCornerList);
+                Bitmap boardImage = createBoardImage(perspectiveMat);
+                b.recycle();
 
 
                 // extract sudoku
-
-                int sudokuBoardValuesSize = 9 * 9;
-
                 for (int i = 0; i < 9; i++) {
                     for (int j = 0; j < 9; j++) {
                         sudokuBoardValues[i][j] = 0;
                     }
                 }
 
-                AtomicInteger processedCellCount = new AtomicInteger(0);
                 List<List<Bitmap>> cellImageList = generateCellImageList(boardImage);
+                List<Runnable> tasks = new ArrayList<>();
+                ExecutorService executorService = Executors.newFixedThreadPool(9 * 9);
+
 
                 for (int i = 0; i < 9; i++) {
                     for (int j = 0; j < 9; j++) {
                         int finalI = i;
                         int finalJ = j;
-                        InputImage inputImage = InputImage.fromBitmap(cellImageList.get(finalI).get(finalJ),0);
-                        textRecognizer.process(inputImage)
-                                .addOnSuccessListener(new OnSuccessListener<Text>() {
-                                    @Override
-                                    public void onSuccess(Text result) {
-                                        int value = parseTextToInt(result.getText());
-                                        if (value != Integer.MIN_VALUE) {
-                                            sudokuBoardValues[finalI][finalJ] = value;
-                                        }
 
-                                        if (finalI == 8 && finalJ == 8) {
-                                            boolean result1 = sudokuSolver.solveSudoku(sudokuBoardValues);
+                        tasks.add(new Runnable() {
+                            @Override
+                            public void run() {
+                                InputImage inputImage = InputImage.fromBitmap(cellImageList.get(finalI).get(finalJ),0);
+                                textRecognizer.process(inputImage)
+                                        .addOnSuccessListener(new OnSuccessListener<Text>() {
+                                            @Override
+                                            public void onSuccess(Text result) {
+                                                int value = parseTextToInt(result.getText());
+                                                if (value != Integer.MIN_VALUE) {
+                                                    sudokuBoardValues[finalI][finalJ] = value;
+                                                }else {
+                                                    value = 0;
+                                                }
 
-                                            if (result1) {
-                                                System.out.println("Solved");
-                                                printBoard();
-                                            } else {
-                                                System.out.println("Not solved");
+                                                System.out.println(finalI + " " + finalJ);
+                                                System.out.println(value);
+
+
+
+                                                if (finalI == 8 && finalJ == 8) {
+                                                    boolean result1 = sudokuSolver.solveSudoku(sudokuBoardValues);
+
+                                                    if (result1) {
+                                                        System.out.println("Solved");
+                                                        printBoard();
+                                                    } else {
+                                                        System.out.println("Not solved");
+                                                    }
+                                                }
                                             }
-                                        }
-                                    }
-                                });
+                                        });
+                            }
+                        });
+
                     }
                 }
 
+                for (Runnable task : tasks) {
+                    executorService.submit(task);
+                }
 
-
-
+                executorService.shutdown();
 
 
                 image.setImageBitmap(boardImage);
@@ -186,6 +194,24 @@ public class SecondActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
         }
+    }
+
+    @NonNull
+    private static Bitmap createBoardImage(Mat perspectiveMat) {
+        Bitmap boardImage = Bitmap.createBitmap(
+                perspectiveMat.cols(),
+                perspectiveMat.rows(),
+                Bitmap.Config.ARGB_8888
+        );
+
+        matToBitmap(perspectiveMat, boardImage);
+        return boardImage;
+    }
+
+    private static void prepareProcessingMat(Mat tmp, Mat processingMat) {
+        cvtColor(tmp, processingMat, COLOR_RGB2GRAY);
+        GaussianBlur(processingMat, processingMat, new Size(11.0, 11.0), 0.0);
+        adaptiveThreshold(processingMat, processingMat, 255.0, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY_INV, 13, 2.0);
     }
 
     private void printBoard() {
@@ -228,8 +254,13 @@ public class SecondActivity extends AppCompatActivity {
     }
 
     @NonNull
-    private static MatOfPoint getLargestContour(ArrayList<MatOfPoint> matPoints) {
-        MatOfPoint largestContour = matPoints.stream().max(new Comparator<MatOfPoint>() {
+    private static MatOfPoint getLargestContour(Mat processingMat) {
+
+        Mat hierarchy = new Mat();
+        ArrayList<MatOfPoint> matpoints = new ArrayList<>();
+        findContours(processingMat,matpoints,hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+
+        MatOfPoint largestContour = matpoints.stream().max(new Comparator<MatOfPoint>() {
             @Override
             public int compare(MatOfPoint o1, MatOfPoint o2) {
                 return Double.compare(Imgproc.contourArea(o1),Imgproc.contourArea(o2));
