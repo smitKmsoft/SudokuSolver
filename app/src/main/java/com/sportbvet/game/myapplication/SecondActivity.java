@@ -1,12 +1,17 @@
 package com.sportbvet.game.myapplication;
 
+import static org.opencv.android.Utils.matToBitmap;
 import static org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_MEAN_C;
 import static org.opencv.imgproc.Imgproc.CHAIN_APPROX_SIMPLE;
 import static org.opencv.imgproc.Imgproc.GaussianBlur;
 import static org.opencv.imgproc.Imgproc.RETR_TREE;
 import static org.opencv.imgproc.Imgproc.THRESH_BINARY_INV;
 import static org.opencv.imgproc.Imgproc.adaptiveThreshold;
+import static org.opencv.imgproc.Imgproc.approxPolyDP;
+import static org.opencv.imgproc.Imgproc.arcLength;
 import static org.opencv.imgproc.Imgproc.findContours;
+import static org.opencv.imgproc.Imgproc.getPerspectiveTransform;
+import static org.opencv.imgproc.Imgproc.warpPerspective;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
@@ -19,6 +24,7 @@ import android.widget.Button;
 import android.widget.ImageView;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
@@ -37,6 +43,7 @@ import org.opencv.objdetect.Board;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -44,6 +51,11 @@ public class SecondActivity extends AppCompatActivity {
 
     Button button;
     ImageView image;
+
+    private double BOARD_SIZE_IN_PX = 9 * 111.0;
+
+
+
 
     @SuppressLint("MissingInflatedId")
     @Override
@@ -86,7 +98,7 @@ public class SecondActivity extends AppCompatActivity {
                 Mat tmp = new Mat (size, CvType.CV_8UC1);
                 Utils.bitmapToMat(b, tmp);
                 Imgproc.cvtColor(tmp, tmp, Imgproc.COLOR_RGB2GRAY);
-                Utils.matToBitmap(tmp, b);
+                matToBitmap(tmp, b);
 
                 // image process for detect board
                 GaussianBlur(tmp, tmp, new Size(11.0, 11.0), 0.0);
@@ -95,26 +107,89 @@ public class SecondActivity extends AppCompatActivity {
                 Mat hierarchy = new Mat();
                 ArrayList<MatOfPoint> matpoints = new ArrayList<>();
                 findContours(tmp,matpoints,hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
-                MatOfPoint largestContour = matpoints.stream().max(new Comparator<MatOfPoint>() {
-                    @Override
-                    public int compare(MatOfPoint o1, MatOfPoint o2) {
-                        return Double.compare(Imgproc.contourArea(o1),Imgproc.contourArea(o2));
-                    }
-                }).get();
+                MatOfPoint largestContour = getLargestContour(matpoints);
+                List<Point> largestContourCornerList = getLargestContourCornerList(largestContour);
+                Mat perspectiveMat = createPerspectiveMat(tmp, largestContourCornerList);
 
-                List<Point> largestContourCornerList = new ArrayList<>();
+                Bitmap boardImage = Bitmap.createBitmap(
+                        perspectiveMat.cols(),
+                        perspectiveMat.rows(),
+                        Bitmap.Config.ARGB_8888
+                );
 
-                MatOfPoint2f src = new MatOfPoint2f();
-                val approxPoly = MatOfPoint2f()
-                largestContour.convertTo(src, CvType.CV_32FC2)
-                val arcLength = arcLength(src, true)
-                approxPolyDP(src, approxPoly, 0.02 * arcLength, true)
+                matToBitmap(perspectiveMat, boardImage);
 
-                image.setImageBitmap(b);
+
+
+                image.setImageBitmap(boardImage);
 
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
+    }
+
+    @NonNull
+    private static MatOfPoint getLargestContour(ArrayList<MatOfPoint> matpoints) {
+        MatOfPoint largestContour = matpoints.stream().max(new Comparator<MatOfPoint>() {
+            @Override
+            public int compare(MatOfPoint o1, MatOfPoint o2) {
+                return Double.compare(Imgproc.contourArea(o1),Imgproc.contourArea(o2));
+            }
+        }).get();
+        return largestContour;
+    }
+
+    private static List<Point> getLargestContourCornerList(MatOfPoint largestContour) {
+        List<Point> largestContourCornerList = new ArrayList<>();
+
+        MatOfPoint2f src = new MatOfPoint2f();
+        MatOfPoint2f approxPoly = new MatOfPoint2f();
+        largestContour.convertTo(src, CvType.CV_32FC2);
+        double arcLength = arcLength(src, true);
+        approxPolyDP(src, approxPoly, 0.02 * arcLength, true);
+        largestContourCornerList = approxPoly.toList();
+        return largestContourCornerList;
+    }
+
+    private Mat createPerspectiveMat(Mat originalMat,List<Point> largestContourCornerList) {
+        Mat perspectiveMat = new Mat();
+        Mat perspectiveSrc =  new MatOfPoint2f(getTopLeft(largestContourCornerList), getTopRight(largestContourCornerList),
+                getBottomLeft(largestContourCornerList), getBottomRight(largestContourCornerList));
+        Mat perspectiveDst = new MatOfPoint2f(new Point(0.0, 0.0), new Point(BOARD_SIZE_IN_PX, 0.0), new Point(0.0, BOARD_SIZE_IN_PX), new Point(BOARD_SIZE_IN_PX, BOARD_SIZE_IN_PX));
+        Mat perspectiveTransform = getPerspectiveTransform(perspectiveSrc, perspectiveDst);
+
+        warpPerspective(
+                originalMat,
+                perspectiveMat,
+                perspectiveTransform,
+                new Size(BOARD_SIZE_IN_PX, BOARD_SIZE_IN_PX)
+        );
+
+        return perspectiveMat;
+    }
+
+    public static Point getTopLeft(List<Point> points) {
+        List<Point> sortedPoints = new ArrayList<>(points);
+        Collections.sort(sortedPoints, Comparator.comparing(Point::getX));
+        return sortedPoints.subList(0, 2).stream().min(Comparator.comparing(Point::getY)).orElse(null);
+    }
+
+    public static Point getBottomLeft(List<Point> points) {
+        List<Point> sortedPoints = new ArrayList<>(points);
+        Collections.sort(sortedPoints, Comparator.comparing(Point::getX));
+        return sortedPoints.subList(0, 2).stream().max(Comparator.comparing(Point::getY)).orElse(null);
+    }
+
+    public static Point getTopRight(List<Point> points) {
+        List<Point> sortedPoints = new ArrayList<>(points);
+        Collections.sort(sortedPoints, Comparator.comparing(Point::getX).reversed());
+        return sortedPoints.subList(0, 2).stream().min(Comparator.comparing(Point::getY)).orElse(null);
+    }
+
+    public static Point getBottomRight(List<Point> points) {
+        List<Point> sortedPoints = new ArrayList<>(points);
+        Collections.sort(sortedPoints, Comparator.comparing(Point::getX).reversed());
+        return sortedPoints.subList(0, 2).stream().max(Comparator.comparing(Point::getY)).orElse(null);
     }
 }
