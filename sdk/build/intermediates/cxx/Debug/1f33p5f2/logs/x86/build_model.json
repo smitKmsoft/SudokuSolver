@@ -143,7 +143,7 @@
         "rootBuildGradleFolder": "/Users/imac/Documents/Android Useful Projects/SudokuSolver",
         "sdkFolder": "/Users/imac/Library/Android/sdk",
         "isBuildOnlyTargetAbiEnabled": true,
-        "ideBuildTargetAbi": "x86",
+        "ideBuildTargetAbi": "x86,armeabi-v7a,armeabi",
         "isCmakeBuildCohabitationEnabled": false,
         "isPrefabEnabled": false
       },

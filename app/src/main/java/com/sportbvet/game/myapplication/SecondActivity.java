@@ -31,6 +31,13 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+
 import org.opencv.android.Utils;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -46,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class SecondActivity extends AppCompatActivity {
 
@@ -53,9 +61,11 @@ public class SecondActivity extends AppCompatActivity {
     ImageView image;
 
     private double BOARD_SIZE_IN_PX = 9 * 111.0;
+    int[][] sudokuBoardValues = new int[9][9];
 
+    TextRecognizer textRecognizer;
 
-
+    SudokuSolver sudokuSolver;
 
     @SuppressLint("MissingInflatedId")
     @Override
@@ -68,6 +78,9 @@ public class SecondActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+        textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        sudokuSolver = new SudokuSolver();
 
         button = findViewById(R.id.button);
         image = findViewById(R.id.image);
@@ -120,6 +133,52 @@ public class SecondActivity extends AppCompatActivity {
                 matToBitmap(perspectiveMat, boardImage);
 
 
+                // extract sudoku
+
+                int sudokuBoardValuesSize = 9 * 9;
+
+                for (int i = 0; i < 9; i++) {
+                    for (int j = 0; j < 9; j++) {
+                        sudokuBoardValues[i][j] = 0;
+                    }
+                }
+
+                AtomicInteger processedCellCount = new AtomicInteger(0);
+                List<List<Bitmap>> cellImageList = generateCellImageList(boardImage);
+
+                for (int i = 0; i < 9; i++) {
+                    for (int j = 0; j < 9; j++) {
+                        int finalI = i;
+                        int finalJ = j;
+                        InputImage inputImage = InputImage.fromBitmap(cellImageList.get(finalI).get(finalJ),0);
+                        textRecognizer.process(inputImage)
+                                .addOnSuccessListener(new OnSuccessListener<Text>() {
+                                    @Override
+                                    public void onSuccess(Text result) {
+                                        int value = parseTextToInt(result.getText());
+                                        if (value != Integer.MIN_VALUE) {
+                                            sudokuBoardValues[finalI][finalJ] = value;
+                                        }
+
+                                        if (finalI == 8 && finalJ == 8) {
+                                            boolean result1 = sudokuSolver.solveSudoku(sudokuBoardValues);
+
+                                            if (result1) {
+                                                System.out.println("Solved");
+                                                printBoard();
+                                            } else {
+                                                System.out.println("Not solved");
+                                            }
+                                        }
+                                    }
+                                });
+                    }
+                }
+
+
+
+
+
 
                 image.setImageBitmap(boardImage);
 
@@ -129,9 +188,48 @@ public class SecondActivity extends AppCompatActivity {
         }
     }
 
+    private void printBoard() {
+        // Print the Sudoku board
+        for (int i = 0; i < 9; i++) {
+            if (i % 3 == 0 && i != 0) {
+                System.out.println("  ");
+            }
+            for (int j = 0; j < 9; j++) {
+                if (j % 3 == 0 && j != 0) {
+                    System.out.print("  ");
+                }
+                System.out.print(sudokuBoardValues[i][j] + " ");
+            }
+            System.out.println();
+        }
+    }
+
+    private int parseTextToInt(String text) {
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            return Integer.MIN_VALUE;
+        }
+    }
+
+    public static List<List<Bitmap>> generateCellImageList(Bitmap boardImage) {
+        int cellSize = boardImage.getWidth() / 9;
+
+        List<List<Bitmap>> cellImageList = new ArrayList<>();
+        for (int i = 0; i < 9; i++) {
+            List<Bitmap> row = new ArrayList<>();
+            for (int j = 0; j < 9; j++) {
+                row.add(Bitmap.createBitmap(boardImage, cellSize * j, cellSize * i, cellSize, cellSize));
+            }
+            cellImageList.add(row);
+        }
+
+        return cellImageList;
+    }
+
     @NonNull
-    private static MatOfPoint getLargestContour(ArrayList<MatOfPoint> matpoints) {
-        MatOfPoint largestContour = matpoints.stream().max(new Comparator<MatOfPoint>() {
+    private static MatOfPoint getLargestContour(ArrayList<MatOfPoint> matPoints) {
+        MatOfPoint largestContour = matPoints.stream().max(new Comparator<MatOfPoint>() {
             @Override
             public int compare(MatOfPoint o1, MatOfPoint o2) {
                 return Double.compare(Imgproc.contourArea(o1),Imgproc.contourArea(o2));
