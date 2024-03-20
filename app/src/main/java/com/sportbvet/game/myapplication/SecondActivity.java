@@ -18,10 +18,14 @@ import static org.opencv.imgproc.Imgproc.warpPerspective;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.media.audiofx.DynamicsProcessing;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.SparseArray;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -59,8 +63,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class SecondActivity extends AppCompatActivity {
 
@@ -121,7 +123,7 @@ public class SecondActivity extends AppCompatActivity {
                 prepareProcessingMat(tmp, processingMat);
                 MatOfPoint largestContour = getLargestContour(processingMat);
                 List<Point> largestContourCornerList = getLargestContourCornerList(largestContour);
-                Mat perspectiveMat = createPerspectiveMat(processingMat, largestContourCornerList);
+                Mat perspectiveMat = createPerspectiveMat(tmp, largestContourCornerList);
                 Bitmap boardImage = createBoardImage(perspectiveMat);
                 b.recycle();
 
@@ -134,58 +136,66 @@ public class SecondActivity extends AppCompatActivity {
                 }
 
                 List<List<Bitmap>> cellImageList = generateCellImageList(boardImage);
-                List<Runnable> tasks = new ArrayList<>();
-                ExecutorService executorService = Executors.newFixedThreadPool(9 * 9);
-
 
                 for (int i = 0; i < 9; i++) {
                     for (int j = 0; j < 9; j++) {
                         int finalI = i;
                         int finalJ = j;
 
-                        tasks.add(new Runnable() {
-                            @Override
-                            public void run() {
-                                InputImage inputImage = InputImage.fromBitmap(cellImageList.get(finalI).get(finalJ),0);
-                                textRecognizer.process(inputImage)
-                                        .addOnSuccessListener(new OnSuccessListener<Text>() {
-                                            @Override
-                                            public void onSuccess(Text result) {
-                                                int value = parseTextToInt(result.getText());
-                                                if (value != Integer.MIN_VALUE) {
-                                                    sudokuBoardValues[finalI][finalJ] = value;
-                                                }else {
-                                                    value = 0;
-                                                }
+                        InputImage inputImage = InputImage.fromBitmap(cellImageList.get(i).get(j),0);
+                        textRecognizer.process(inputImage)
+                                .addOnSuccessListener(new OnSuccessListener<Text>() {
+                                    @Override
+                                    public void onSuccess(Text result) {
+                                        int value = 0;
+                                        if (result.getTextBlocks().size() > 0) {
+                                            value = parseTextToInt(result.getTextBlocks().get(0).getText());
+                                        } else {
+                                            value = parseTextToInt(result.getText());
+                                        }
 
-                                                System.out.println(finalI + " " + finalJ);
-                                                System.out.println(value);
+                                        if (value != Integer.MIN_VALUE) {
+                                            sudokuBoardValues[finalI][finalJ] = value;
+                                        }else {
+                                            value = 0;
+                                        }
 
+                                        System.out.println(finalI + " " + finalJ);
+                                        System.out.println(value);
 
+                                        if (finalI == 8 && finalJ == 8) {
+                                            boolean result1 = sudokuSolver.solveSudoku(sudokuBoardValues);
+                                            if (result1) {
+                                                System.out.println("Solved");
+                                                printBoard();
 
-                                                if (finalI == 8 && finalJ == 8) {
-                                                    boolean result1 = sudokuSolver.solveSudoku(sudokuBoardValues);
+                                              /*  Canvas canvas = new Canvas(boardImage);
+                                                float cellSize = boardImage.getWidth() / 9;
+                                                Paint paint = new Paint();
+                                                paint.setColor(Color.GREEN);
+                                                paint.setTextSize(20f);
 
-                                                    if (result1) {
-                                                        System.out.println("Solved");
-                                                        printBoard();
-                                                    } else {
-                                                        System.out.println("Not solved");
+                                                for (int k = 0; k < 9; k++) {
+                                                    for (int l = 0; l < 9; l++) {
+                                                        if (sudokuBoardValues[k][l] != 0) {
+                                                            continue;
+                                                        }
+
+                                                        canvas.drawText(String.valueOf(sudokuBoardValues[k][l]),l* cellSize + 40f,k * cellSize + 85f,paint);
                                                     }
                                                 }
+
+                                                image.setImageBitmap(boardImage);*/
+
+                                            } else {
+                                                System.out.println("Not solved");
                                             }
-                                        });
-                            }
-                        });
+                                        }
+                                    }
+                                });
 
                     }
                 }
-
-                for (Runnable task : tasks) {
-                    executorService.submit(task);
-                }
-
-                executorService.shutdown();
 
 
                 image.setImageBitmap(boardImage);
