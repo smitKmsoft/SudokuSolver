@@ -42,15 +42,13 @@ dependencies {
     // To recognize Latin script
     implementation 'com.google.mlkit:text-recognition:16.0.0'
 
-    // To recognize Chinese script
-    implementation 'com.google.mlkit:text-recognition-chinese:16.0.0'
-
-    // To recognize Devanagari script
-    implementation 'com.google.mlkit:text-recognition-devanagari:16.0.0'
-
-    // To recognize Japanese script
-    implementation 'com.google.mlkit:text-recognition-japanese:16.0.0'
-
-    // To recognize Korean script
-    implementation 'com.google.mlkit:text-recognition-korean:16.0.0'
+//    implementation 'com.google.android.gms:play-services-base:11.8.0'
+//    implementation 'com.google.android.gms:play-services-auth:11.8.0'
+//    implementation 'com.google.apis:google-api-services-vision:v1-rev16-1.22.0'
+//    implementation ('com.google.api-client:google-api-client-android:1.22.0') {
+//        exclude module: 'httpclient'
+//    }
+//    implementation ('com.google.http-client:google-http-client-gson:1.20.0') {
+//        exclude module: 'httpclient'
+//    }
 }

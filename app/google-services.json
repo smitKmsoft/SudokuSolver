@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "190396000640",
+    "project_id": "sudoku-solver-a0dfa",
+    "storage_bucket": "sudoku-solver-a0dfa.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:190396000640:android:b0c931582567ecc394f965",
+        "android_client_info": {
+          "package_name": "com.sportbvet.game.myapplication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBHO8C_6xx64V5IyUh-TsIyS3EXaka75Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:190396000640:android:f5c676b0f23f854b94f965",
+        "android_client_info": {
+          "package_name": "tuver.sudokusolver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBHO8C_6xx64V5IyUh-TsIyS3EXaka75Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

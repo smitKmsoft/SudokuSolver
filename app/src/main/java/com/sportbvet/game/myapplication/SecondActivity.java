@@ -20,6 +20,7 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.media.audiofx.DynamicsProcessing;
 import android.net.Uri;
@@ -58,8 +59,11 @@ import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.Board;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -75,6 +79,19 @@ public class SecondActivity extends AppCompatActivity {
     TextRecognizer textRecognizer;
 
     SudokuSolver sudokuSolver;
+
+    private static final int[][] NUMBER_COLORS = {
+            {0x00, 0x28, 0x27, 0x43, 0x00, 0x36}, // 0
+            {0x2f, 0x4f, 0x57, 0x4f, 0x2f, 0x4f}, // 1
+            {0x00, 0x37, 0x55, 0x55, 0x55, 0x55}, // 2
+            {0x00, 0x37, 0x55, 0x55, 0x55, 0x00}, // 3
+            {0x07, 0x55, 0x55, 0x55, 0x37, 0x00}, // 4
+            {0x00, 0x55, 0x55, 0x55, 0x37, 0x00}, // 5
+            {0x00, 0x55, 0x55, 0x55, 0x55, 0x00}, // 6
+            {0x00, 0x37, 0x55, 0x4f, 0x2f, 0x4f}, // 7
+            {0x00, 0x55, 0x55, 0x55, 0x55, 0x55}, // 8
+            {0x00, 0x55, 0x55, 0x55, 0x37, 0x00}  // 9
+    };
 
     @SuppressLint("MissingInflatedId")
     @Override
@@ -141,14 +158,30 @@ public class SecondActivity extends AppCompatActivity {
                     for (int j = 0; j < 9; j++) {
                         int finalI = i;
                         int finalJ = j;
+                        Bitmap bitmap = cellImageList.get(i).get(j);
 
-                        InputImage inputImage = InputImage.fromBitmap(cellImageList.get(i).get(j),0);
+                        Matrix matrix = new Matrix();
+
+                        matrix.postRotate(180);
+
+                        Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, bitmap.getWidth(), bitmap.getHeight(), true);
+
+                        Bitmap rotatedBitmap = Bitmap.createBitmap(scaledBitmap, 0, 0, scaledBitmap.getWidth(), scaledBitmap.getHeight(), matrix, true);
+
+                        System.out.println(bitmap.getWidth() + "*" + bitmap.getHeight());
+
+//                        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+//                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
+//                        byte[] byteArray = stream.toByteArray();
+
+
+                        InputImage inputImage = InputImage.fromBitmap(rotatedBitmap,0);
                         textRecognizer.process(inputImage)
                                 .addOnSuccessListener(new OnSuccessListener<Text>() {
                                     @Override
                                     public void onSuccess(Text result) {
                                         int value = 0;
-                                        if (result.getTextBlocks().size() > 0) {
+                                        if (!result.getTextBlocks().isEmpty()) {
                                             value = parseTextToInt(result.getTextBlocks().get(0).getText());
                                         } else {
                                             value = parseTextToInt(result.getText());
@@ -160,8 +193,8 @@ public class SecondActivity extends AppCompatActivity {
                                             value = 0;
                                         }
 
-                                        System.out.println(finalI + " " + finalJ);
-                                        System.out.println(value);
+                                        System.out.print(finalI + "*" + finalJ + " :");
+                                        System.out.println( " " + value + " ");
 
                                         if (finalI == 8 && finalJ == 8) {
                                             boolean result1 = sudokuSolver.solveSudoku(sudokuBoardValues);
@@ -169,7 +202,7 @@ public class SecondActivity extends AppCompatActivity {
                                                 System.out.println("Solved");
                                                 printBoard();
 
-                                              /*  Canvas canvas = new Canvas(boardImage);
+                                                /*Canvas canvas = new Canvas(boardImage);
                                                 float cellSize = boardImage.getWidth() / 9;
                                                 Paint paint = new Paint();
                                                 paint.setColor(Color.GREEN);
@@ -255,7 +288,9 @@ public class SecondActivity extends AppCompatActivity {
         for (int i = 0; i < 9; i++) {
             List<Bitmap> row = new ArrayList<>();
             for (int j = 0; j < 9; j++) {
-                row.add(Bitmap.createBitmap(boardImage, cellSize * j, cellSize * i, cellSize, cellSize));
+
+                Bitmap cellImage = Bitmap.createBitmap(boardImage, cellSize * j, cellSize * i, cellSize, cellSize);
+                row.add(cellImage);
             }
             cellImageList.add(row);
         }
