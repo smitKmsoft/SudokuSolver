@@ -102,6 +102,13 @@ public class SecondActivity extends AppCompatActivity {
         gridView = findViewById(R.id.gridView);
 
         button.setOnClickListener(v -> {
+            question.setVisibility(View.GONE);
+            image.setVisibility(View.GONE);
+            answer.setVisibility(View.GONE);
+            gridView.setVisibility(View.GONE);
+            sudokuBoards.clear();
+            sudokuBoards = new ArrayList<>();
+
             Intent intent = new Intent();
             intent.setType("image/*");
             intent.setAction(Intent.ACTION_GET_CONTENT);
