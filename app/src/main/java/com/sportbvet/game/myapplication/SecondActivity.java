@@ -20,16 +20,19 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Matrix;
 import android.graphics.Paint;
-import android.media.audiofx.DynamicsProcessing;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
-import android.util.SparseArray;
 import android.view.View;
 import android.widget.Button;
+import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
@@ -39,7 +42,6 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
@@ -53,45 +55,32 @@ import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
-import org.opencv.core.Rect;
-import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
-import org.opencv.objdetect.Board;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class SecondActivity extends AppCompatActivity {
 
     Button button;
     ImageView image;
 
-    private double BOARD_SIZE_IN_PX = 9 * 111.0;
+    TextView question, answer;
     int[][] sudokuBoardValues = new int[9][9];
 
     TextRecognizer textRecognizer;
 
     SudokuSolver sudokuSolver;
 
-    private static final int[][] NUMBER_COLORS = {
-            {0x00, 0x28, 0x27, 0x43, 0x00, 0x36}, // 0
-            {0x2f, 0x4f, 0x57, 0x4f, 0x2f, 0x4f}, // 1
-            {0x00, 0x37, 0x55, 0x55, 0x55, 0x55}, // 2
-            {0x00, 0x37, 0x55, 0x55, 0x55, 0x00}, // 3
-            {0x07, 0x55, 0x55, 0x55, 0x37, 0x00}, // 4
-            {0x00, 0x55, 0x55, 0x55, 0x37, 0x00}, // 5
-            {0x00, 0x55, 0x55, 0x55, 0x55, 0x00}, // 6
-            {0x00, 0x37, 0x55, 0x4f, 0x2f, 0x4f}, // 7
-            {0x00, 0x55, 0x55, 0x55, 0x55, 0x55}, // 8
-            {0x00, 0x55, 0x55, 0x55, 0x37, 0x00}  // 9
-    };
+    GridView gridView;
+    Bitmap boardImage;
 
     @SuppressLint("MissingInflatedId")
     @Override
@@ -110,15 +99,15 @@ public class SecondActivity extends AppCompatActivity {
 
         button = findViewById(R.id.button);
         image = findViewById(R.id.image);
+        question = findViewById(R.id.question);
+        answer = findViewById(R.id.answer);
+        gridView = findViewById(R.id.gridView);
 
-        button.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent();
-                intent.setType("image/*");
-                intent.setAction(Intent.ACTION_GET_CONTENT);
-                startActivityForResult(intent, 1);
-            }
+        button.setOnClickListener(v -> {
+            Intent intent = new Intent();
+            intent.setType("image/*");
+            intent.setAction(Intent.ACTION_GET_CONTENT);
+            startActivityForResult(intent, 1);
         });
     }
 
@@ -128,9 +117,13 @@ public class SecondActivity extends AppCompatActivity {
 
         if (requestCode == 1 && resultCode == RESULT_OK) {
             // Image picked successfully
+            assert data != null;
             Uri imageUri = data.getData();
             try {
                 Bitmap b = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageUri);
+
+                System.out.println("Original width: " + b.getWidth());
+                System.out.println("Original height: " + b.getHeight());
 
                 Mat tmp = new Mat(b.getHeight(), b.getWidth(), CvType.CV_8UC1);
                 Utils.bitmapToMat(b, tmp);
@@ -141,97 +134,64 @@ public class SecondActivity extends AppCompatActivity {
                 MatOfPoint largestContour = getLargestContour(processingMat);
                 List<Point> largestContourCornerList = getLargestContourCornerList(largestContour);
                 Mat perspectiveMat = createPerspectiveMat(tmp, largestContourCornerList);
-                Bitmap boardImage = createBoardImage(perspectiveMat);
+                boardImage = createBoardImage(perspectiveMat);
                 b.recycle();
 
+                for (int[] row : sudokuBoardValues) Arrays.fill(row, 0);
 
-                // extract sudoku
-                for (int i = 0; i < 9; i++) {
-                    for (int j = 0; j < 9; j++) {
-                        sudokuBoardValues[i][j] = 0;
-                    }
-                }
+                InputImage inputImage = InputImage.fromBitmap(boardImage, 0);
 
-                List<List<Bitmap>> cellImageList = generateCellImageList(boardImage);
+                textRecognizer.process(inputImage)
+                        .addOnSuccessListener(new OnSuccessListener<Text>() {
+                            @Override
+                            public void onSuccess(Text result) {
 
-                for (int i = 0; i < 9; i++) {
-                    for (int j = 0; j < 9; j++) {
-                        int finalI = i;
-                        int finalJ = j;
-                        Bitmap bitmap = cellImageList.get(i).get(j);
+                                List<Text.TextBlock> blocks = new ArrayList<>(result.getTextBlocks());
+                                for (Text.TextBlock block : blocks) {
+                                    for (Text.Line line : block.getLines()) {
+                                        for (Text.Element element : line.getElements()) {
+                                            for (Text.Symbol symbol : element.getSymbols()) {
+                                                Rect rect = symbol.getBoundingBox();
+                                                String symbolText = filterNumericCharacters(symbol.getText());
 
-                        Matrix matrix = new Matrix();
+                                                int cellSize = boardImage.getWidth() / 9;
 
-                        matrix.postRotate(180);
+                                                assert rect != null;
+                                                int column = (rect.left - 1) / cellSize; // Subtract 1 to ensure zero-based indexing
 
-                        Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, bitmap.getWidth(), bitmap.getHeight(), true);
+                                                int row = (rect.top - 1) / cellSize; // Subtract 1 to ensure zero-based indexing
 
-                        Bitmap rotatedBitmap = Bitmap.createBitmap(scaledBitmap, 0, 0, scaledBitmap.getWidth(), scaledBitmap.getHeight(), matrix, true);
-
-                        System.out.println(bitmap.getWidth() + "*" + bitmap.getHeight());
-
-//                        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-//                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
-//                        byte[] byteArray = stream.toByteArray();
-
-
-                        InputImage inputImage = InputImage.fromBitmap(rotatedBitmap,0);
-                        textRecognizer.process(inputImage)
-                                .addOnSuccessListener(new OnSuccessListener<Text>() {
-                                    @Override
-                                    public void onSuccess(Text result) {
-                                        int value = 0;
-                                        if (!result.getTextBlocks().isEmpty()) {
-                                            value = parseTextToInt(result.getTextBlocks().get(0).getText());
-                                        } else {
-                                            value = parseTextToInt(result.getText());
-                                        }
-
-                                        if (value != Integer.MIN_VALUE) {
-                                            sudokuBoardValues[finalI][finalJ] = value;
-                                        }else {
-                                            value = 0;
-                                        }
-
-                                        System.out.print(finalI + "*" + finalJ + " :");
-                                        System.out.println( " " + value + " ");
-
-                                        if (finalI == 8 && finalJ == 8) {
-                                            boolean result1 = sudokuSolver.solveSudoku(sudokuBoardValues);
-                                            if (result1) {
-                                                System.out.println("Solved");
-                                                printBoard();
-
-                                                /*Canvas canvas = new Canvas(boardImage);
-                                                float cellSize = boardImage.getWidth() / 9;
-                                                Paint paint = new Paint();
-                                                paint.setColor(Color.GREEN);
-                                                paint.setTextSize(20f);
-
-                                                for (int k = 0; k < 9; k++) {
-                                                    for (int l = 0; l < 9; l++) {
-                                                        if (sudokuBoardValues[k][l] != 0) {
-                                                            continue;
-                                                        }
-
-                                                        canvas.drawText(String.valueOf(sudokuBoardValues[k][l]),l* cellSize + 40f,k * cellSize + 85f,paint);
-                                                    }
+                                                System.out.println("Grid position: Row " + row + ", Column " + column);
+                                                int value = 0;
+                                                value = parseTextToInt(symbolText);
+                                                if (value != Integer.MIN_VALUE) {
+                                                    sudokuBoardValues[row][column] = value;
+                                                } else {
+                                                    value = 0;
                                                 }
-
-                                                image.setImageBitmap(boardImage);*/
-
-                                            } else {
-                                                System.out.println("Not solved");
                                             }
                                         }
                                     }
-                                });
+                                }
 
-                    }
-                }
+                                System.out.println("Questions : ");
+//                                printBoard();
+
+                                boolean result1 = sudokuSolver.solveSudoku(sudokuBoardValues);
+                                if (result1) {
+                                    System.out.println("Solved Ans : ");
+                                    printBoard();
+
+                                } else {
+                                    System.out.println("Not solved");
+                                }
+
+                            }
+                        });
 
 
-                image.setImageBitmap(boardImage);
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(boardImage, boardImage.getWidth()/2, boardImage.getHeight()/2, true);
+                image.setImageBitmap(resizedBitmap);
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -239,8 +199,12 @@ public class SecondActivity extends AppCompatActivity {
         }
     }
 
+    public String filterNumericCharacters(@NonNull String text) {
+        return text.replaceAll("[^0-9]", "");
+    }
+
     @NonNull
-    private static Bitmap createBoardImage(Mat perspectiveMat) {
+    private static Bitmap createBoardImage(@NonNull Mat perspectiveMat) {
         Bitmap boardImage = Bitmap.createBitmap(
                 perspectiveMat.cols(),
                 perspectiveMat.rows(),
@@ -271,6 +235,14 @@ public class SecondActivity extends AppCompatActivity {
             }
             System.out.println();
         }
+
+        question.setVisibility(View.VISIBLE);
+        image.setVisibility(View.VISIBLE);
+        answer.setVisibility(View.VISIBLE);
+        gridView.setVisibility(View.VISIBLE);
+
+        SudokuAdapter adapter = new SudokuAdapter(this, sudokuBoardValues,(boardImage.getWidth()) / 9);
+        gridView.setAdapter(adapter);
     }
 
     private int parseTextToInt(String text) {
@@ -281,40 +253,23 @@ public class SecondActivity extends AppCompatActivity {
         }
     }
 
-    public static List<List<Bitmap>> generateCellImageList(Bitmap boardImage) {
-        int cellSize = boardImage.getWidth() / 9;
-
-        List<List<Bitmap>> cellImageList = new ArrayList<>();
-        for (int i = 0; i < 9; i++) {
-            List<Bitmap> row = new ArrayList<>();
-            for (int j = 0; j < 9; j++) {
-
-                Bitmap cellImage = Bitmap.createBitmap(boardImage, cellSize * j, cellSize * i, cellSize, cellSize);
-                row.add(cellImage);
-            }
-            cellImageList.add(row);
-        }
-
-        return cellImageList;
-    }
-
     @NonNull
     private static MatOfPoint getLargestContour(Mat processingMat) {
 
         Mat hierarchy = new Mat();
         ArrayList<MatOfPoint> matpoints = new ArrayList<>();
-        findContours(processingMat,matpoints,hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+        findContours(processingMat, matpoints, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
 
         MatOfPoint largestContour = matpoints.stream().max(new Comparator<MatOfPoint>() {
             @Override
             public int compare(MatOfPoint o1, MatOfPoint o2) {
-                return Double.compare(Imgproc.contourArea(o1),Imgproc.contourArea(o2));
+                return Double.compare(Imgproc.contourArea(o1), Imgproc.contourArea(o2));
             }
         }).get();
         return largestContour;
     }
 
-    private static List<Point> getLargestContourCornerList(MatOfPoint largestContour) {
+    private static List<Point> getLargestContourCornerList(@NonNull MatOfPoint largestContour) {
         List<Point> largestContourCornerList = new ArrayList<>();
 
         MatOfPoint2f src = new MatOfPoint2f();
@@ -326,10 +281,12 @@ public class SecondActivity extends AppCompatActivity {
         return largestContourCornerList;
     }
 
-    private Mat createPerspectiveMat(Mat originalMat,List<Point> largestContourCornerList) {
+    @NonNull
+    private Mat createPerspectiveMat(Mat originalMat, List<Point> largestContourCornerList) {
         Mat perspectiveMat = new Mat();
-        Mat perspectiveSrc =  new MatOfPoint2f(getTopLeft(largestContourCornerList), getTopRight(largestContourCornerList),
+        Mat perspectiveSrc = new MatOfPoint2f(getTopLeft(largestContourCornerList), getTopRight(largestContourCornerList),
                 getBottomLeft(largestContourCornerList), getBottomRight(largestContourCornerList));
+        double BOARD_SIZE_IN_PX = 9 * 111.0;
         Mat perspectiveDst = new MatOfPoint2f(new Point(0.0, 0.0), new Point(BOARD_SIZE_IN_PX, 0.0), new Point(0.0, BOARD_SIZE_IN_PX), new Point(BOARD_SIZE_IN_PX, BOARD_SIZE_IN_PX));
         Mat perspectiveTransform = getPerspectiveTransform(perspectiveSrc, perspectiveDst);
 
@@ -345,25 +302,25 @@ public class SecondActivity extends AppCompatActivity {
 
     public static Point getTopLeft(List<Point> points) {
         List<Point> sortedPoints = new ArrayList<>(points);
-        Collections.sort(sortedPoints, Comparator.comparing(Point::getX));
+        sortedPoints.sort(Comparator.comparing(Point::getX));
         return sortedPoints.subList(0, 2).stream().min(Comparator.comparing(Point::getY)).orElse(null);
     }
 
     public static Point getBottomLeft(List<Point> points) {
         List<Point> sortedPoints = new ArrayList<>(points);
-        Collections.sort(sortedPoints, Comparator.comparing(Point::getX));
+        sortedPoints.sort(Comparator.comparing(Point::getX));
         return sortedPoints.subList(0, 2).stream().max(Comparator.comparing(Point::getY)).orElse(null);
     }
 
     public static Point getTopRight(List<Point> points) {
         List<Point> sortedPoints = new ArrayList<>(points);
-        Collections.sort(sortedPoints, Comparator.comparing(Point::getX).reversed());
+        sortedPoints.sort(Comparator.comparing(Point::getX).reversed());
         return sortedPoints.subList(0, 2).stream().min(Comparator.comparing(Point::getY)).orElse(null);
     }
 
     public static Point getBottomRight(List<Point> points) {
         List<Point> sortedPoints = new ArrayList<>(points);
-        Collections.sort(sortedPoints, Comparator.comparing(Point::getX).reversed());
+        sortedPoints.sort(Comparator.comparing(Point::getX).reversed());
         return sortedPoints.subList(0, 2).stream().max(Comparator.comparing(Point::getY)).orElse(null);
     }
 }
