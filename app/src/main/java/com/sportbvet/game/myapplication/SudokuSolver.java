@@ -1,20 +1,27 @@
 package com.sportbvet.game.myapplication;
+
+import androidx.annotation.NonNull;
+
+import java.util.ArrayList;
+
 public class SudokuSolver {
 
     private static final int EMPTY = 0;
     private static final int SIZE = 9;
 
-    public boolean solveSudoku(int[][] board) {
+    public int[][] board2 = new int[9][9];
+
+    public boolean solveSudoku() {
         for (int row = 0; row < SIZE; row++) {
             for (int col = 0; col < SIZE; col++) {
-                if (board[row][col] == EMPTY) {
+                if (board2[row][col] == EMPTY) {
                     for (int value = 1; value <= SIZE; value++) {
-                        if (isValidMove(board, row, col, value)) {
-                            board[row][col] = value;
-                            if (solveSudoku(board)) {
+                        if (isValidMove(board2, row, col, value)) {
+                            board2[row][col] = value;
+                            if (solveSudoku()) {
                                 return true;
                             } else {
-                                board[row][col] = EMPTY;
+                                board2[row][col] = EMPTY;
                             }
                         }
                     }
@@ -23,6 +30,17 @@ public class SudokuSolver {
             }
         }
         return true;
+    }
+
+    public boolean getBoard(@NonNull ArrayList<SudokuBoard> board) {
+
+        for (int i = 0; i < board.size(); i++) {
+            SudokuBoard sudokuBoard = board.get(i);
+            board2[sudokuBoard.row][sudokuBoard.col] = sudokuBoard.value;
+        }
+
+        return solveSudoku();
+
     }
 
     private boolean isValidMove(int[][] board, int row, int col, int value) {

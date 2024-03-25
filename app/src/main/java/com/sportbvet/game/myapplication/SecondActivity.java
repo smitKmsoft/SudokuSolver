@@ -73,14 +73,12 @@ public class SecondActivity extends AppCompatActivity {
     ImageView image;
 
     TextView question, answer;
-    int[][] sudokuBoardValues = new int[9][9];
-
     TextRecognizer textRecognizer;
 
     SudokuSolver sudokuSolver;
-
     GridView gridView;
     Bitmap boardImage;
+    ArrayList<SudokuBoard> sudokuBoards = new ArrayList<>();
 
     @SuppressLint("MissingInflatedId")
     @Override
@@ -122,9 +120,6 @@ public class SecondActivity extends AppCompatActivity {
             try {
                 Bitmap b = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageUri);
 
-                System.out.println("Original width: " + b.getWidth());
-                System.out.println("Original height: " + b.getHeight());
-
                 Mat tmp = new Mat(b.getHeight(), b.getWidth(), CvType.CV_8UC1);
                 Utils.bitmapToMat(b, tmp);
 
@@ -137,7 +132,16 @@ public class SecondActivity extends AppCompatActivity {
                 boardImage = createBoardImage(perspectiveMat);
                 b.recycle();
 
-                for (int[] row : sudokuBoardValues) Arrays.fill(row, 0);
+                for (int i = 0; i < 9; i++) {
+                    for (int j = 0; j < 9; j++) {
+                        SudokuBoard sudokuBoard = new SudokuBoard();
+                        sudokuBoard.isFilled = false;
+                        sudokuBoard.value = 0;
+                        sudokuBoard.row = i;
+                        sudokuBoard.col = j;
+                        sudokuBoards.add(sudokuBoard);
+                    }
+                }
 
                 InputImage inputImage = InputImage.fromBitmap(boardImage, 0);
 
@@ -147,6 +151,7 @@ public class SecondActivity extends AppCompatActivity {
                             public void onSuccess(Text result) {
 
                                 List<Text.TextBlock> blocks = new ArrayList<>(result.getTextBlocks());
+
                                 for (Text.TextBlock block : blocks) {
                                     for (Text.Line line : block.getLines()) {
                                         for (Text.Element element : line.getElements()) {
@@ -161,25 +166,25 @@ public class SecondActivity extends AppCompatActivity {
 
                                                 int row = (rect.top - 1) / cellSize; // Subtract 1 to ensure zero-based indexing
 
-                                                System.out.println("Grid position: Row " + row + ", Column " + column);
                                                 int value = 0;
                                                 value = parseTextToInt(symbolText);
                                                 if (value != Integer.MIN_VALUE) {
-                                                    sudokuBoardValues[row][column] = value;
-                                                } else {
-                                                    value = 0;
+
+                                                    for (int i = 0; i < sudokuBoards.size(); i++) {
+                                                        if (sudokuBoards.get(i).row == row && sudokuBoards.get(i).col == column) {
+                                                            sudokuBoards.get(i).isFilled = true;
+                                                            sudokuBoards.get(i).value = value;
+                                                            break;
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
 
-                                System.out.println("Questions : ");
-//                                printBoard();
-
-                                boolean result1 = sudokuSolver.solveSudoku(sudokuBoardValues);
+                                boolean result1 = sudokuSolver.getBoard(sudokuBoards);
                                 if (result1) {
-                                    System.out.println("Solved Ans : ");
                                     printBoard();
 
                                 } else {
@@ -223,17 +228,23 @@ public class SecondActivity extends AppCompatActivity {
 
     private void printBoard() {
         // Print the Sudoku board
-        for (int i = 0; i < 9; i++) {
-            if (i % 3 == 0 && i != 0) {
-                System.out.println("  ");
+//        for (int i = 0; i < 9; i++) {
+//            if (i % 3 == 0 && i != 0) {
+//                System.out.println("  ");
+//            }
+//            for (int j = 0; j < 9; j++) {
+//                if (j % 3 == 0 && j != 0) {
+//                    System.out.print("  ");
+//                }
+//                System.out.print(sudokuBoardValues[i][j] + " ");
+//            }
+//            System.out.println();
+//        }
+
+        for (int i = 0; i < sudokuBoards.size(); i++) {
+            if (!sudokuBoards.get(i).isFilled) {
+                sudokuBoards.get(i).value = sudokuSolver.board2[sudokuBoards.get(i).row][sudokuBoards.get(i).col];
             }
-            for (int j = 0; j < 9; j++) {
-                if (j % 3 == 0 && j != 0) {
-                    System.out.print("  ");
-                }
-                System.out.print(sudokuBoardValues[i][j] + " ");
-            }
-            System.out.println();
         }
 
         question.setVisibility(View.VISIBLE);
@@ -241,7 +252,7 @@ public class SecondActivity extends AppCompatActivity {
         answer.setVisibility(View.VISIBLE);
         gridView.setVisibility(View.VISIBLE);
 
-        SudokuAdapter adapter = new SudokuAdapter(this, sudokuBoardValues,(boardImage.getWidth()) / 9);
+        SudokuAdapter adapter = new SudokuAdapter(this, sudokuBoards,(boardImage.getWidth()) / 9);
         gridView.setAdapter(adapter);
     }
 

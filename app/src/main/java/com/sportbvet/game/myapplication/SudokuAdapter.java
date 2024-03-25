@@ -1,5 +1,6 @@
 package com.sportbvet.game.myapplication;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Color;
 import android.view.Gravity;
@@ -9,22 +10,25 @@ import android.widget.BaseAdapter;
 import android.widget.GridView;
 import android.widget.TextView;
 
+import java.util.ArrayList;
+
 // SudokuAdapter.java
 public class SudokuAdapter extends BaseAdapter {
-    private Context mContext;
-    private int[][] mSudokuArray;
+    private final Context mContext;
+
+    ArrayList<SudokuBoard> sudokuArray = new ArrayList<>();
 
     int cellSize;
 
-    public SudokuAdapter(Context context, int[][] sudokuArray, int cellSize) {
+    public SudokuAdapter(Context context, ArrayList<SudokuBoard> sudokuArray, int cellSize) {
         mContext = context;
-        mSudokuArray = sudokuArray;
+        this.sudokuArray = sudokuArray;
         this.cellSize = cellSize;
     }
 
     @Override
     public int getCount() {
-        return 81; // Assuming a 9x9 Sudoku grid
+        return sudokuArray.size(); // Assuming a 9x9 Sudoku grid
     }
 
     @Override
@@ -37,16 +41,16 @@ public class SudokuAdapter extends BaseAdapter {
         return 0;
     }
 
+    @SuppressLint("UseCompatLoadingForDrawables")
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         TextView textView;
         if (convertView == null) {
             textView = new TextView(mContext);
             textView.setLayoutParams(new GridView.LayoutParams(cellSize, cellSize)); // Adjust size as needed
-            textView.setBackground(mContext.getResources().getDrawable(R.drawable.border));
-            textView.setTextColor(Color.BLACK);
             textView.setTextSize(20.0f);
             textView.setGravity(Gravity.CENTER);
+            textView.setPadding(8, 8, 8, 8);
         } else {
             textView = (TextView) convertView;
         }
@@ -54,8 +58,18 @@ public class SudokuAdapter extends BaseAdapter {
         int row = position / 9;
         int col = position % 9;
 
-        int sudokuValue = mSudokuArray[row][col];
-        textView.setText(sudokuValue + "");
+        SudokuBoard sudokuBoard = sudokuArray.get(position);
+        if (sudokuBoard.row == row && sudokuBoard.col == col) {
+            textView.setText(sudokuBoard.value + "");
+            if (sudokuBoard.isFilled) {
+                textView.setBackground(mContext.getResources().getDrawable(R.drawable.cell_fiiled,null));
+                textView.setTextColor(Color.WHITE);
+            } else {
+                textView.setBackground(mContext.getResources().getDrawable(R.drawable.cell,null));
+                textView.setTextColor(Color.BLACK);
+            }
+        }
+
 
         return textView;
     }

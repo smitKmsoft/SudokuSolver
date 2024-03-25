@@ -38,9 +38,9 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/answer"
         android:numColumns="9"
-        android:verticalSpacing="1dp"
-        android:horizontalSpacing="1dp"
-        android:background="@android:color/darker_gray"
+        android:background="@drawable/cell_border"
+        android:layout_margin="8dp"
+        android:columnWidth="20dp"
         android:visibility="gone"/>
 
     <Button
