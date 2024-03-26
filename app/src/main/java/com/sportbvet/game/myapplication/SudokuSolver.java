@@ -34,6 +34,8 @@ public class SudokuSolver {
 
     public boolean getBoard(@NonNull ArrayList<SudokuBoard> board) {
 
+        board2 = new int[9][9];
+
         for (int i = 0; i < board.size(); i++) {
             SudokuBoard sudokuBoard = board.get(i);
             board2[sudokuBoard.row][sudokuBoard.col] = sudokuBoard.value;

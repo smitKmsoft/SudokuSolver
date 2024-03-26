@@ -18,12 +18,9 @@ public class SudokuAdapter extends BaseAdapter {
 
     ArrayList<SudokuBoard> sudokuArray = new ArrayList<>();
 
-    int cellSize;
-
-    public SudokuAdapter(Context context, ArrayList<SudokuBoard> sudokuArray, int cellSize) {
+    public SudokuAdapter(Context context, ArrayList<SudokuBoard> sudokuArray) {
         mContext = context;
         this.sudokuArray = sudokuArray;
-        this.cellSize = cellSize;
     }
 
     @Override
@@ -47,7 +44,7 @@ public class SudokuAdapter extends BaseAdapter {
         TextView textView;
         if (convertView == null) {
             textView = new TextView(mContext);
-            textView.setLayoutParams(new GridView.LayoutParams(cellSize, cellSize)); // Adjust size as needed
+            textView.setLayoutParams(new GridView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)); // Adjust size as needed
             textView.setTextSize(20.0f);
             textView.setGravity(Gravity.CENTER);
             textView.setPadding(8, 8, 8, 8);

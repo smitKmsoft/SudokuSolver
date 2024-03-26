@@ -156,7 +156,6 @@ public class SecondActivity extends AppCompatActivity {
                         .addOnSuccessListener(new OnSuccessListener<Text>() {
                             @Override
                             public void onSuccess(Text result) {
-
                                 List<Text.TextBlock> blocks = new ArrayList<>(result.getTextBlocks());
 
                                 for (Text.TextBlock block : blocks) {
@@ -184,11 +183,15 @@ public class SecondActivity extends AppCompatActivity {
                                                             break;
                                                         }
                                                     }
+                                                } else {
+                                                    value = 0;
                                                 }
                                             }
                                         }
                                     }
                                 }
+
+                                printBoard();
 
                                 boolean result1 = sudokuSolver.getBoard(sudokuBoards);
                                 if (result1) {
@@ -202,7 +205,7 @@ public class SecondActivity extends AppCompatActivity {
                         });
 
 
-                Bitmap resizedBitmap = Bitmap.createScaledBitmap(boardImage, boardImage.getWidth()/2, boardImage.getHeight()/2, true);
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(boardImage, boardImage.getWidth()*2, boardImage.getHeight()*2, true);
                 image.setImageBitmap(resizedBitmap);
 
             } catch (IOException e) {
@@ -259,7 +262,7 @@ public class SecondActivity extends AppCompatActivity {
         answer.setVisibility(View.VISIBLE);
         gridView.setVisibility(View.VISIBLE);
 
-        SudokuAdapter adapter = new SudokuAdapter(this, sudokuBoards,(boardImage.getWidth()) / 9);
+        SudokuAdapter adapter = new SudokuAdapter(this, sudokuBoards);
         gridView.setAdapter(adapter);
     }
 
@@ -304,7 +307,8 @@ public class SecondActivity extends AppCompatActivity {
         Mat perspectiveMat = new Mat();
         Mat perspectiveSrc = new MatOfPoint2f(getTopLeft(largestContourCornerList), getTopRight(largestContourCornerList),
                 getBottomLeft(largestContourCornerList), getBottomRight(largestContourCornerList));
-        double BOARD_SIZE_IN_PX = 9 * 111.0;
+//        double BOARD_SIZE_IN_PX = 9 * 111.0;
+        double BOARD_SIZE_IN_PX = 9 * 24.0;
         Mat perspectiveDst = new MatOfPoint2f(new Point(0.0, 0.0), new Point(BOARD_SIZE_IN_PX, 0.0), new Point(0.0, BOARD_SIZE_IN_PX), new Point(BOARD_SIZE_IN_PX, BOARD_SIZE_IN_PX));
         Mat perspectiveTransform = getPerspectiveTransform(perspectiveSrc, perspectiveDst);
 
