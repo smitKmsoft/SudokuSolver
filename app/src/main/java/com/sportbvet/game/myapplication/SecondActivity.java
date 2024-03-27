@@ -33,6 +33,7 @@ import android.widget.Button;
 import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
@@ -42,6 +43,7 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
@@ -202,6 +204,11 @@ public class SecondActivity extends AppCompatActivity {
                                 }
 
                             }
+                        }).addOnFailureListener(new OnFailureListener() {
+                            @Override
+                            public void onFailure(@NonNull Exception e) {
+                                Toast.makeText(SecondActivity.this, "" + e.getLocalizedMessage(), Toast.LENGTH_SHORT).show();
+                            }
                         });
 
 
@@ -232,7 +239,7 @@ public class SecondActivity extends AppCompatActivity {
 
     private static void prepareProcessingMat(Mat tmp, Mat processingMat) {
         cvtColor(tmp, processingMat, COLOR_RGB2GRAY);
-        GaussianBlur(processingMat, processingMat, new Size(11.0, 11.0), 0.0);
+//        GaussianBlur(processingMat, processingMat, new Size(11.0, 11.0), 0.0);
         adaptiveThreshold(processingMat, processingMat, 255.0, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY_INV, 13, 2.0);
     }
 
