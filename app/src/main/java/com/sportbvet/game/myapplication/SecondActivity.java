@@ -4,7 +4,6 @@ import static org.opencv.android.Utils.matToBitmap;
 import static org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_MEAN_C;
 import static org.opencv.imgproc.Imgproc.CHAIN_APPROX_SIMPLE;
 import static org.opencv.imgproc.Imgproc.COLOR_RGB2GRAY;
-import static org.opencv.imgproc.Imgproc.GaussianBlur;
 import static org.opencv.imgproc.Imgproc.RETR_TREE;
 import static org.opencv.imgproc.Imgproc.THRESH_BINARY_INV;
 import static org.opencv.imgproc.Imgproc.adaptiveThreshold;
@@ -16,22 +15,20 @@ import static org.opencv.imgproc.Imgproc.getPerspectiveTransform;
 import static org.opencv.imgproc.Imgproc.warpPerspective;
 
 import android.annotation.SuppressLint;
+import android.app.ProgressDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.ColorMatrix;
-import android.graphics.ColorMatrixColorFilter;
-import android.graphics.Matrix;
-import android.graphics.Paint;
 import android.graphics.Rect;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.view.View;
 import android.widget.Button;
 import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -43,8 +40,10 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
@@ -82,6 +81,9 @@ public class SecondActivity extends AppCompatActivity {
     Bitmap boardImage;
     ArrayList<SudokuBoard> sudokuBoards = new ArrayList<>();
 
+    ProgressBar progress;
+    RelativeLayout relativeLayout;
+
     @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -102,6 +104,8 @@ public class SecondActivity extends AppCompatActivity {
         question = findViewById(R.id.question);
         answer = findViewById(R.id.answer);
         gridView = findViewById(R.id.gridView);
+        progress = findViewById(R.id.progress);
+        relativeLayout = findViewById(R.id.main);
 
         button.setOnClickListener(v -> {
             question.setVisibility(View.GONE);
@@ -124,6 +128,14 @@ public class SecondActivity extends AppCompatActivity {
 
         if (requestCode == 1 && resultCode == RESULT_OK) {
             // Image picked successfully
+
+
+            relativeLayout.setEnabled(false);
+            relativeLayout.setClickable(false);
+            relativeLayout.setActivated(false);
+            progress.setVisibility(View.VISIBLE);
+            button.setVisibility(View.GONE);
+
             assert data != null;
             Uri imageUri = data.getData();
             try {
@@ -154,6 +166,12 @@ public class SecondActivity extends AppCompatActivity {
 
                 InputImage inputImage = InputImage.fromBitmap(boardImage, 0);
 
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(boardImage, boardImage.getWidth()*2, boardImage.getHeight()*2, true);
+                image.setImageBitmap(resizedBitmap);
+                question.setVisibility(View.VISIBLE);
+                image.setVisibility(View.VISIBLE);
+                answer.setVisibility(View.VISIBLE);
+
                 textRecognizer.process(inputImage)
                         .addOnSuccessListener(new OnSuccessListener<Text>() {
                             @Override
@@ -170,9 +188,9 @@ public class SecondActivity extends AppCompatActivity {
                                                 int cellSize = boardImage.getWidth() / 9;
 
                                                 assert rect != null;
-                                                int column = (rect.left - 1) / cellSize; // Subtract 1 to ensure zero-based indexing
+                                                int column = (rect.left - 1) / cellSize;
 
-                                                int row = (rect.top - 1) / cellSize; // Subtract 1 to ensure zero-based indexing
+                                                int row = (rect.top - 1) / cellSize;
 
                                                 int value = 0;
                                                 value = parseTextToInt(symbolText);
@@ -185,15 +203,12 @@ public class SecondActivity extends AppCompatActivity {
                                                             break;
                                                         }
                                                     }
-                                                } else {
-                                                    value = 0;
                                                 }
                                             }
                                         }
                                     }
                                 }
 
-                                printBoard();
 
                                 boolean result1 = sudokuSolver.getBoard(sudokuBoards);
                                 if (result1) {
@@ -210,10 +225,6 @@ public class SecondActivity extends AppCompatActivity {
                                 Toast.makeText(SecondActivity.this, "" + e.getLocalizedMessage(), Toast.LENGTH_SHORT).show();
                             }
                         });
-
-
-                Bitmap resizedBitmap = Bitmap.createScaledBitmap(boardImage, boardImage.getWidth()*2, boardImage.getHeight()*2, true);
-                image.setImageBitmap(resizedBitmap);
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -245,18 +256,18 @@ public class SecondActivity extends AppCompatActivity {
 
     private void printBoard() {
         // Print the Sudoku board
-//        for (int i = 0; i < 9; i++) {
-//            if (i % 3 == 0 && i != 0) {
-//                System.out.println("  ");
-//            }
-//            for (int j = 0; j < 9; j++) {
-//                if (j % 3 == 0 && j != 0) {
-//                    System.out.print("  ");
-//                }
-//                System.out.print(sudokuBoardValues[i][j] + " ");
-//            }
-//            System.out.println();
-//        }
+        for (int i = 0; i < 9; i++) {
+            if (i % 3 == 0 && i != 0) {
+                System.out.println("  ");
+            }
+            for (int j = 0; j < 9; j++) {
+                if (j % 3 == 0 && j != 0) {
+                    System.out.print("  ");
+                }
+                System.out.print(sudokuSolver.board2[i][j] + " ");
+            }
+            System.out.println();
+        }
 
         for (int i = 0; i < sudokuBoards.size(); i++) {
             if (!sudokuBoards.get(i).isFilled) {
@@ -264,13 +275,17 @@ public class SecondActivity extends AppCompatActivity {
             }
         }
 
-        question.setVisibility(View.VISIBLE);
-        image.setVisibility(View.VISIBLE);
-        answer.setVisibility(View.VISIBLE);
         gridView.setVisibility(View.VISIBLE);
 
         SudokuAdapter adapter = new SudokuAdapter(this, sudokuBoards);
         gridView.setAdapter(adapter);
+
+        progress.setVisibility(View.GONE);
+        button.setVisibility(View.VISIBLE);
+
+        relativeLayout.setEnabled(true);
+        relativeLayout.setActivated(true);
+        relativeLayout.setClickable(true);
     }
 
     private int parseTextToInt(String text) {
